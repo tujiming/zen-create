@@ -1,0 +1,5 @@
+{
+  "name": "ZenCreate - 佛教自媒体平台",
+  "description": "一个自动化的佛教自媒体内容创作平台，具备脚本生成、AI 绘图、Veo 视频生成以及语音合成功能。",
+  "requestFramePermissions": []
+}
