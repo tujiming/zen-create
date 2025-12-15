@@ -179,16 +179,17 @@ async function callGeminiForScript(ai: GoogleGenAI, prompt: string): Promise<Scr
 // 2. Generate Video (Veo)
 export const generateSceneVideo = async (
   prompt: string,
-  apiKey: string
+  apiKey: string,
+  modelName: string = 'veo-3.1-fast-generate-preview'
 ): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey });
   
-  console.log("Attempting Veo Video Generation...", prompt);
+  console.log(`Attempting Veo Video Generation (${modelName})...`, prompt);
 
   // Note: 'numberOfVideos' must be 1 for current Veo Preview models.
   // To get more videos, we increased the number of scenes in the script generation step.
   let operation = await ai.models.generateVideos({
-    model: 'veo-3.1-fast-generate-preview', 
+    model: modelName, 
     prompt: `Cinematic, highly detailed, buddhist atmosphere, ${prompt}`,
     config: {
       numberOfVideos: 1,
@@ -198,8 +199,9 @@ export const generateSceneVideo = async (
   });
 
   let attempts = 0;
+  // Increase timeout tolerance for High Quality models (60 * 5s = 5 minutes max)
   while (!operation.done) {
-    if (attempts > 30) throw new Error("Video generation timed out"); 
+    if (attempts > 60) throw new Error("Video generation timed out (5 mins limit exceeded)"); 
     await new Promise(resolve => setTimeout(resolve, 5000));
     operation = await ai.operations.getVideosOperation({ operation: operation });
     attempts++;

@@ -6,6 +6,7 @@ import { generateScript, parseUserScript, generateSceneAudio, generateSceneVideo
 import { saveProjectToStorage, getProjectsFromStorage, deleteProjectFromStorage } from './services/storageService';
 
 type InputMode = 'TOPIC' | 'SCRIPT';
+type ProductionMode = 'VIDEO' | 'IMAGE';
 
 const App: React.FC = () => {
   const [project, setProject] = useState<Project | null>(null);
@@ -26,6 +27,10 @@ const App: React.FC = () => {
   const [selectedVoice, setSelectedVoice] = useState(AVAILABLE_VOICES[0].name);
   const [targetDuration, setTargetDuration] = useState(1); 
   
+  // Production Settings
+  const [productionMode, setProductionMode] = useState<ProductionMode>('VIDEO');
+  const [videoModel, setVideoModel] = useState('veo-3.1-fast-generate-preview');
+
   const [showPlayer, setShowPlayer] = useState(false);
 
   // --- Init ---
@@ -297,26 +302,22 @@ const App: React.FC = () => {
        const sceneNum = project.scenes.findIndex(sc => sc.id === s.id) + 1;
        
        currentStep++;
-       setAutoProgress({ current: currentStep, total: totalSteps, status: `[2/2 视频制作] 场景 ${sceneNum}...` });
-       updateSceneStatus(sceneId, { isGeneratingVideo: true });
+       
+       // Determine mode: Video or Image?
+       // If Video mode selected BUT quota exhausted, force Image.
+       const useVideo = productionMode === 'VIDEO' && !videoQuotaExhausted;
+       const statusMode = useVideo ? '视频' : '图片';
 
-       if (videoQuotaExhausted) {
-          // Direct Image Fallback
-          try {
-              await new Promise(r => setTimeout(r, 1000));
-              const imgUrl = await generateSceneImage(s.visualPrompt, currentApiKey);
-              updateSceneStatus(sceneId, { imageUrl: imgUrl, isGeneratingVideo: false });
-          } catch (imgE: any) {
-              failedCount++;
-              updateSceneStatus(sceneId, { isGeneratingVideo: false });
-          }
-       } else {
-          // Try Video
-          try {
+       setAutoProgress({ current: currentStep, total: totalSteps, status: `[2/2 ${statusMode}制作] 场景 ${sceneNum}...` });
+       
+       if (useVideo) {
+           // --- TRY VIDEO GENERATION ---
+           updateSceneStatus(sceneId, { isGeneratingVideo: true });
+           try {
              if (i > 0) await new Promise(r => setTimeout(r, 4000));
-             const url = await generateSceneVideo(s.visualPrompt, currentApiKey);
+             const url = await generateSceneVideo(s.visualPrompt, currentApiKey, videoModel);
              updateSceneStatus(sceneId, { videoUrl: url, isGeneratingVideo: false });
-          } catch(e: any) {
+           } catch(e: any) {
              const errStr = (e.message || '') + JSON.stringify(e);
              if (errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED')) {
                  console.warn("Veo Quota Exhausted during fix. Switching to Image.");
@@ -332,7 +333,19 @@ const App: React.FC = () => {
                 updateSceneStatus(sceneId, { isGeneratingVideo: false });
                 failedCount++;
              }
-          }
+           }
+       } else {
+           // --- IMAGE ONLY MODE ---
+           updateSceneStatus(sceneId, { isGeneratingImage: true });
+           try {
+              if (i > 0) await new Promise(r => setTimeout(r, 1000)); // Lighter delay
+              const imgUrl = await generateSceneImage(s.visualPrompt, currentApiKey);
+              updateSceneStatus(sceneId, { imageUrl: imgUrl, isGeneratingImage: false });
+           } catch (imgE: any) {
+              lastError = imgE.message || 'Unknown Visual Error';
+              updateSceneStatus(sceneId, { isGeneratingImage: false });
+              failedCount++;
+           }
        }
     }
 
@@ -340,7 +353,7 @@ const App: React.FC = () => {
     setAutoProgress(null);
     
     if (failedCount > 0) {
-        alert(`生成结束，但仍有 ${failedCount} 个项目失败。\n\n原因: ${lastError}\n\n建议稍作休息后再试，或使用“生成图片”代替视频。`);
+        alert(`生成结束，但仍有 ${failedCount} 个项目失败。\n\n原因: ${lastError}\n\n建议稍作休息后再试。`);
     } else {
         // All good, auto play
         setShowPlayer(true);
@@ -369,7 +382,7 @@ const App: React.FC = () => {
       else if (type === 'VIDEO') {
         updateSceneStatus(sceneId, { isGeneratingVideo: true });
         try {
-           const url = await generateSceneVideo(scene.visualPrompt, currentApiKey);
+           const url = await generateSceneVideo(scene.visualPrompt, currentApiKey, videoModel);
            updateSceneStatus(sceneId, { videoUrl: url, isGeneratingVideo: false });
         } catch (e: any) {
            const errStr = (e.message || '') + JSON.stringify(e);
@@ -443,14 +456,49 @@ const App: React.FC = () => {
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                     返回 (Back)
                 </button>
-                <div className="flex gap-3">
+                <div className="flex gap-3 items-center">
+                    {/* Production Mode Selector */}
+                    <div className="flex gap-2">
+                        <div className="relative">
+                            <select 
+                                value={productionMode}
+                                onChange={(e) => setProductionMode(e.target.value as ProductionMode)}
+                                className="appearance-none bg-monk-50 border border-monk-200 text-monk-700 text-sm rounded-lg pl-3 pr-8 py-2 focus:ring-monk-500 focus:border-monk-500 font-bold cursor-pointer hover:bg-monk-100"
+                                title="Veo视频模型生成次数有限，如遇限制可切换为图片模式"
+                            >
+                                <option value="VIDEO">优先生成视频 (Veo)</option>
+                                <option value="IMAGE">仅生成图片 (省额度)</option>
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-monk-500">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </div>
+
+                        {productionMode === 'VIDEO' && (
+                             <div className="relative">
+                                <select 
+                                    value={videoModel}
+                                    onChange={(e) => setVideoModel(e.target.value)}
+                                    className="appearance-none bg-stone-50 border border-monk-200 text-monk-700 text-sm rounded-lg pl-3 pr-8 py-2 focus:ring-monk-500 focus:border-monk-500 font-bold cursor-pointer hover:bg-stone-100"
+                                    title="选择视频模型版本"
+                                >
+                                    <option value="veo-3.1-fast-generate-preview">极速模式 (Veo Fast)</option>
+                                    <option value="veo-3.1-generate-preview">高画质 (Veo Quality)</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-monk-500">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     <button onClick={() => setShowPlayer(true)} className="bg-monk-600 hover:bg-monk-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        预览 (Preview)
+                        预览
                     </button>
                     <button onClick={handleStartProduction} className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2">
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
-                        一键生成素材 (Generate All)
+                        一键生成素材
                     </button>
                 </div>
             </div>
