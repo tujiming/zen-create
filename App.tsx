@@ -20,8 +20,8 @@ const App: React.FC = () => {
   const [inputScript, setInputScript] = useState('');
   
   // Consistency Inputs
-  const [characterDesc, setCharacterDesc] = useState('An 8-year-old cute buddhist novice monk, wearing grey robes, shaved head, kind smile');
-  const [artStyle, setArtStyle] = useState('Ghibli style animation, soft lighting, peaceful atmosphere');
+  const [characterDesc, setCharacterDesc] = useState('');
+  const [artStyle, setArtStyle] = useState('');
 
   const [targetAudience, setTargetAudience] = useState('Children');
   const [selectedVoice, setSelectedVoice] = useState(AVAILABLE_VOICES[0].name);
