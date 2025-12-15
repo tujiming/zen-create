@@ -41,11 +41,11 @@ const App: React.FC = () => {
   // --- Helpers ---
   const ensureApiKey = async () => {
     // 1. First check if we are in the AI Studio / Project IDX environment
-    if (window.aistudio) {
+    if ((window as any).aistudio) {
       try {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
         if (!hasKey) {
-          await window.aistudio.openSelectKey();
+          await (window as any).aistudio.openSelectKey();
         }
         return true;
       } catch (e) {
@@ -189,19 +189,6 @@ const App: React.FC = () => {
     // Reset value to allow re-importing same file
     e.target.value = '';
   };
-
-  // Compute stats
-  const incompleteScenesCount = useMemo(() => {
-    if (!project) return 0;
-    // Considered complete if it has audio AND (video OR image)
-    return project.scenes.filter(s => !s.audioUrl || (!s.videoUrl && !s.imageUrl)).length;
-  }, [project]);
-
-  // Check if project has ZERO media assets (fresh script)
-  const isFreshScript = useMemo(() => {
-     if (!project) return false;
-     return project.scenes.every(s => !s.audioUrl && !s.videoUrl && !s.imageUrl);
-  }, [project]);
 
   // --- Automation Workflow ---
 
@@ -421,25 +408,134 @@ const App: React.FC = () => {
     loadHistory();
   };
 
-  const handleSelectVeoKey = async () => {
-    if(window.aistudio) {
-        await window.aistudio.openSelectKey();
-    } else {
-        alert("未检测到 AI Studio 环境。如果是部署环境，请检查 API Key 配置。");
-    }
-  }
-
   // --- Views ---
 
-  if (!project && !isBusy) {
+  // 1. Loading View
+  if (isBusy) {
     return (
+        <Layout title="">
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+                <div className="w-16 h-16 border-4 border-monk-200 border-t-monk-600 rounded-full animate-spin mb-6"></div>
+                <h3 className="text-2xl font-serif text-monk-800 mb-2">正在用心制作 (Processing)</h3>
+                {autoProgress && (
+                    <div className="max-w-md w-full px-4">
+                        <p className="text-monk-600 font-medium mb-2">{autoProgress.status}</p>
+                        <div className="w-full bg-monk-100 rounded-full h-2.5">
+                            <div className="bg-monk-600 h-2.5 rounded-full transition-all duration-300" style={{ width: `${(autoProgress.current / autoProgress.total) * 100}%` }}></div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </Layout>
+    );
+  }
+
+  // 2. Editor View
+  if (project) {
+    return (
+        <Layout title={project.title}>
+            {showPlayer && (
+                <Player scenes={project.scenes} onClose={() => setShowPlayer(false)} />
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-xl border border-monk-200 shadow-sm">
+                <button onClick={() => setProject(null)} className="text-monk-500 hover:text-monk-800 flex items-center gap-2 text-sm font-bold">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                    返回 (Back)
+                </button>
+                <div className="flex gap-3">
+                    <button onClick={() => setShowPlayer(true)} className="bg-monk-600 hover:bg-monk-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        预览 (Preview)
+                    </button>
+                    <button onClick={handleStartProduction} className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2 rounded-lg font-bold shadow-sm flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                        一键生成素材 (Generate All)
+                    </button>
+                </div>
+            </div>
+
+            <div className="space-y-6">
+                {project.scenes.map((scene, idx) => (
+                    <div key={scene.id} className="bg-white rounded-xl shadow-sm border border-monk-200 overflow-hidden flex flex-col md:flex-row">
+                        <div className="md:w-1/3 bg-stone-100 relative group min-h-[200px]">
+                            {scene.videoUrl ? (
+                                <video src={scene.videoUrl} className="w-full h-full object-cover" controls muted />
+                            ) : scene.imageUrl ? (
+                                <img src={scene.imageUrl} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="absolute inset-0 flex items-center justify-center text-stone-300">
+                                    <span className="text-sm font-bold">等待生成画面</span>
+                                </div>
+                            )}
+                            
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-10">
+                                <button onClick={() => handleManualAction(scene.id, 'VIDEO')} className="bg-white text-stone-900 text-xs font-bold px-3 py-2 rounded shadow hover:bg-stone-200">
+                                    生成视频 (Veo)
+                                </button>
+                                <button onClick={() => handleManualAction(scene.id, 'IMAGE')} className="bg-white text-stone-900 text-xs font-bold px-3 py-2 rounded shadow hover:bg-stone-200">
+                                    生成图片 (Imagen)
+                                </button>
+                            </div>
+
+                            {(scene.isGeneratingVideo || scene.isGeneratingImage) && (
+                                <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-10">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent"></div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="md:w-2/3 p-6 flex flex-col gap-4">
+                            <div className="flex justify-between items-start">
+                                <span className="bg-monk-100 text-monk-700 text-xs font-bold px-2 py-1 rounded">Scene {idx + 1}</span>
+                                <div className="flex items-center gap-2">
+                                    {scene.audioUrl && <audio src={scene.audioUrl} controls className="h-6 w-32" />}
+                                    <button 
+                                        onClick={() => handleManualAction(scene.id, 'AUDIO')}
+                                        disabled={scene.isGeneratingAudio}
+                                        className="text-xs border border-monk-200 text-monk-600 px-2 py-1 rounded hover:bg-monk-50"
+                                    >
+                                        {scene.isGeneratingAudio ? '生成中...' : '重新配音'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] uppercase text-monk-300 font-bold tracking-wider">Narration</label>
+                                <textarea 
+                                    className="w-full border-l-2 border-monk-200 pl-3 py-1 text-lg font-serif text-monk-800 bg-transparent focus:outline-none resize-none"
+                                    rows={2}
+                                    value={scene.narration}
+                                    onChange={(e) => handleUpdateText(scene.id, 'narration', e.target.value)}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] uppercase text-monk-300 font-bold tracking-wider">Visual Prompt</label>
+                                <textarea 
+                                    className="w-full bg-stone-50 border border-stone-200 rounded p-2 text-xs text-stone-500 focus:outline-none resize-none"
+                                    rows={2}
+                                    value={scene.visualPrompt}
+                                    onChange={(e) => handleUpdateText(scene.id, 'visualPrompt', e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <div className="h-12"></div>
+        </Layout>
+    );
+  }
+
+  // 3. Create / Dashboard View
+  return (
       <Layout title="">
-        
         {/* CREATE SECTION */}
         <div className="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-xl border border-monk-200 mb-12">
           <div className="mb-8 text-center border-b border-monk-100 pb-6">
             <h3 className="text-3xl font-serif text-monk-800 mb-2 font-bold">开始新的创作</h3>
-            <p className="text-monk-600 font-light">设定一致的人物与画风，可选择自动构思或直接粘贴文案。</p>
+            <p className="text-monk-600 font-light">设定人物角色与画风，可选择AI自动构思或自己输入文字。</p>
           </div>
           
           {/* 1. Consistency Settings (Crucial for Video) */}
@@ -481,13 +577,13 @@ const App: React.FC = () => {
                     onClick={() => setInputMode('TOPIC')}
                     className={`pb-2 px-4 font-bold text-lg transition-colors border-b-2 ${inputMode === 'TOPIC' ? 'border-monk-600 text-monk-800' : 'border-transparent text-monk-300 hover:text-monk-500'}`}
                   >
-                    AI 自动构思
+                    AI 构思
                   </button>
                   <button 
                     onClick={() => setInputMode('SCRIPT')}
                     className={`pb-2 px-4 font-bold text-lg transition-colors border-b-2 ${inputMode === 'SCRIPT' ? 'border-monk-600 text-monk-800' : 'border-transparent text-monk-300 hover:text-monk-500'}`}
                   >
-                    直接粘贴文案
+                    输入文案
                   </button>
                </div>
 
@@ -504,7 +600,7 @@ const App: React.FC = () => {
                  </div>
                ) : (
                  <div>
-                    <label className="block text-sm font-bold text-monk-800 mb-2">粘贴完整文案</label>
+                    <label className="block text-sm font-bold text-monk-800 mb-2">如果没有文案则不必输入</label>
                     <textarea 
                       className="w-full p-4 border border-monk-300 rounded-lg focus:ring-2 focus:ring-monk-500 focus:outline-none bg-stone-50 text-sm shadow-inner font-mono"
                       rows={8}
@@ -601,7 +697,7 @@ const App: React.FC = () => {
                 }`}
               >
                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                {inputMode === 'TOPIC' ? '生成脚本 (Generate Script)' : '分析文案 (Parse Script)'}
+                下一步
               </button>
             </div>
           </div>
@@ -686,235 +782,6 @@ const App: React.FC = () => {
            )}
         </div>
       </Layout>
-    );
-  }
-
-  // --- Project Editor View ---
-
-  return (
-    <Layout title={project ? project.title : 'Generating...'}>
-      
-      {/* Automation Progress Overlay */}
-      {isBusy && autoProgress && (
-        <div className="fixed inset-0 z-[60] bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center">
-            <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-2xl border border-monk-200 text-center">
-                <div className="mb-6">
-                   <div className="w-16 h-16 border-4 border-monk-200 border-t-monk-600 rounded-full animate-spin mx-auto mb-4"></div>
-                   <h3 className="text-xl font-serif text-monk-800 font-bold">{autoProgress.status}</h3>
-                </div>
-                {autoProgress.total > 0 && (
-                   <div className="w-full bg-stone-100 rounded-full h-4 overflow-hidden mb-2">
-                      <div 
-                        className="bg-monk-500 h-full transition-all duration-500 ease-out"
-                        style={{ width: `${(autoProgress.current / autoProgress.total) * 100}%` }}
-                      ></div>
-                   </div>
-                )}
-                <p className="text-stone-500 text-sm">
-                   {autoProgress.current} / {autoProgress.total} 步骤完成
-                </p>
-                <p className="text-stone-400 text-xs mt-4">请勿关闭浏览器，系统会自动保存进度。</p>
-            </div>
-        </div>
-      )}
-
-      {/* Toolbar */}
-      {project && (
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 sticky top-[72px] bg-stone-50/95 backdrop-blur z-40 py-4 border-b border-monk-200 shadow-sm px-4 rounded-b-lg gap-4">
-        <div className="flex flex-wrap items-center gap-4 text-xs md:text-sm">
-          <div className="flex flex-col md:flex-row gap-2">
-            <span className="font-medium text-monk-700 bg-monk-100 px-3 py-1 rounded-full border border-monk-200">
-              受众: {getAudienceLabel(targetAudience)}
-            </span>
-            <span className="font-medium text-monk-700 bg-monk-100 px-3 py-1 rounded-full border border-monk-200">
-              ID: {project.id.slice(-6)}
-            </span>
-          </div>
-
-          <button 
-            onClick={handleSelectVeoKey} 
-            className="text-xs text-monk-600 underline hover:text-monk-800 ml-2"
-           >
-            检查权限
-           </button>
-        </div>
-
-        <div className="flex gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          <button 
-            onClick={() => { setProject(null); loadHistory(); }}
-            className="whitespace-nowrap flex-1 md:flex-none px-6 py-2 bg-transparent hover:bg-monk-100 text-monk-700 border-2 border-monk-300 rounded-full font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95"
-          >
-             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-               <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-             </svg>
-            返回首页
-          </button>
-          
-          {/* Main Workflow Action Button */}
-          <button 
-            onClick={handleStartProduction}
-            className={`whitespace-nowrap flex-1 md:flex-none px-8 py-3 rounded-full font-bold shadow-md flex items-center justify-center gap-2 transition-transform active:scale-95 ${
-              incompleteScenesCount > 0 
-                ? 'bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white animate-pulse' // Production needed
-                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white' // Ready for preview
-            }`}
-          >
-            {incompleteScenesCount > 0 ? (
-               <>
-                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                 {isFreshScript 
-                    ? "确认脚本并开始制作 (Start Production)" 
-                    : `继续制作 (补全 ${incompleteScenesCount} 个素材)`
-                 }
-               </>
-            ) : (
-               <>
-                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"/></svg>
-                 预览完整作品 (Preview)
-               </>
-            )}
-          </button>
-        </div>
-      </div>
-      )}
-
-      {/* Scenes List */}
-      {project && (
-      <div className="space-y-8 pb-20">
-        
-        {/* Helper Banner for Script Editing */}
-        {isFreshScript && !isBusy && (
-            <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r shadow-sm">
-                <div className="flex">
-                    <div className="flex-shrink-0">
-                        <svg className="h-5 w-5 text-amber-500" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                    </div>
-                    <div className="ml-3">
-                        <p className="text-sm text-amber-700 font-bold">
-                            请审阅下方脚本！
-                        </p>
-                        <p className="text-sm text-amber-700">
-                            系统已自动将您的【主角设定】和【画风设定】添加到了每一段画面的提示词中，以确保视频一致性。
-                        </p>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {project.scenes.map((scene, index) => (
-          <div key={scene.id} className="bg-white rounded-xl shadow-sm border border-monk-200 overflow-hidden flex flex-col md:flex-row relative group hover:shadow-md transition-shadow">
-            
-            <div className={`absolute top-0 left-0 text-white px-3 py-1 text-sm font-bold rounded-br-lg z-10 ${(!scene.videoUrl && !scene.imageUrl || !scene.audioUrl) ? 'bg-red-500' : 'bg-monk-600'}`}>
-               #{index + 1} {(!scene.videoUrl && !scene.imageUrl || !scene.audioUrl) ? '(待制作)' : ''}
-            </div>
-
-            {/* Left: Content */}
-            <div className="flex-1 p-6 pt-10 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-monk-400 uppercase tracking-wider mb-1">旁白 (Narration)</label>
-                <textarea 
-                  className="w-full p-3 bg-stone-50 border border-stone-200 rounded text-stone-700 focus:ring-1 focus:ring-monk-400 focus:outline-none"
-                  rows={3}
-                  value={scene.narration}
-                  onChange={(e) => handleUpdateText(scene.id, 'narration', e.target.value)}
-                  onBlur={() => persistProject(project)} // Save on blur
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-monk-400 uppercase tracking-wider mb-1">提示词 (Prompt)</label>
-                <textarea 
-                  className="w-full p-3 bg-stone-50 border border-stone-200 rounded text-xs text-stone-600 focus:ring-1 focus:ring-monk-400 focus:outline-none"
-                  rows={3}
-                  value={scene.visualPrompt}
-                  onChange={(e) => handleUpdateText(scene.id, 'visualPrompt', e.target.value)}
-                  onBlur={() => persistProject(project)} // Save on blur
-                />
-                <p className="text-[10px] text-monk-300 mt-1">* 包含了全局一致性设定</p>
-              </div>
-
-              <div className="flex items-center gap-4 pt-2 border-t border-stone-100 mt-2">
-                 <div className="text-xs font-bold text-monk-400 uppercase">状态:</div>
-                 <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full border ${scene.audioUrl ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-200'}`}>
-                    {scene.isGeneratingAudio ? '生成中...' : scene.audioUrl ? `配音: ${scene.audioDuration?.toFixed(1)}s` : '缺失配音'}
-                 </div>
-                 <button
-                  onClick={() => handleManualAction(scene.id, 'AUDIO')}
-                  disabled={scene.isGeneratingAudio}
-                  className="text-xs text-monk-500 hover:text-monk-700 underline"
-                >
-                  {scene.audioUrl ? '重生成配音' : '生成配音'}
-                </button>
-              </div>
-            </div>
-
-            {/* Right: Media */}
-            <div className="w-full md:w-96 bg-stone-100 border-l border-monk-100 p-4 flex flex-col gap-4">
-               <div className={`aspect-video bg-stone-200 rounded-lg overflow-hidden relative group shadow-inner ${(!scene.videoUrl && !scene.imageUrl) ? 'border-2 border-dashed border-red-300' : ''}`}>
-                  {scene.videoUrl ? (
-                      <video 
-                        src={scene.videoUrl} 
-                        controls 
-                        className="w-full h-full object-cover" 
-                        muted 
-                      />
-                  ) : scene.imageUrl ? (
-                      <div className="relative w-full h-full">
-                         <img src={scene.imageUrl} className="w-full h-full object-cover" />
-                         <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">图片 (Image)</span>
-                      </div>
-                  ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-stone-400">
-                          {scene.isGeneratingVideo ? (
-                             <span className="text-xs">Veo 渲染中...</span>
-                          ) : scene.isGeneratingImage ? (
-                             <span className="text-xs">图片生成中...</span>
-                          ) : (
-                             <span className="text-sm text-red-400">画面缺失</span>
-                          )}
-                      </div>
-                  )}
-
-                  {(scene.isGeneratingVideo || scene.isGeneratingImage) && (
-                      <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white text-sm font-medium backdrop-blur-sm z-20">
-                          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mb-2"></div>
-                          {scene.isGeneratingVideo ? 'Veo 视频渲染中...' : '图片生成中...'}
-                      </div>
-                  )}
-               </div>
-               
-               <div className="grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => handleManualAction(scene.id, 'VIDEO')}
-                    disabled={scene.isGeneratingVideo || scene.isGeneratingImage}
-                    className={`col-span-1 py-2 border rounded text-xs disabled:opacity-50 ${scene.videoUrl ? 'bg-white border-stone-300 text-stone-600 hover:bg-stone-50' : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'}`}
-                  >
-                    生成视频 (Veo)
-                  </button>
-                  <button 
-                    onClick={() => handleManualAction(scene.id, 'IMAGE')}
-                    disabled={scene.isGeneratingVideo || scene.isGeneratingImage}
-                    className={`col-span-1 py-2 border rounded text-xs disabled:opacity-50 ${scene.imageUrl ? 'bg-white border-stone-300 text-stone-600 hover:bg-stone-50' : 'bg-monk-50 border-monk-200 text-monk-600 hover:bg-monk-100'}`}
-                  >
-                    生成图片 (Image)
-                  </button>
-               </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      )}
-
-      {showPlayer && project && (
-        <Player 
-          scenes={project.scenes}
-          onClose={() => setShowPlayer(false)} 
-        />
-      )}
-
-    </Layout>
   );
 };
 

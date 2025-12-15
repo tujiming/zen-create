@@ -9,7 +9,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   return (
     <div className="min-h-screen flex flex-col bg-stone-50 text-stone-800">
       <header className="bg-monk-800 text-monk-50 py-4 px-6 shadow-md sticky top-0 z-50 border-b border-monk-700">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
+        <div className="max-w-6xl mx-auto flex items-center gap-6">
           <div className="flex items-center space-x-4 group cursor-pointer" onClick={() => window.location.reload()}>
             {/* Zen Enso Logo - Minimalist & Atmospheric */}
             <div className="relative w-12 h-12 flex items-center justify-center">
@@ -30,13 +30,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
                </span>
             </div>
           </div>
-          <div className="hidden sm:flex items-center space-x-4">
-             <span className="text-xs font-serif text-monk-300 tracking-widest border-r border-monk-600 pr-4">
+
+          <div className="hidden sm:flex items-center space-x-6">
+             <div className="h-8 w-px bg-monk-600"></div>
+             <span className="text-xs font-serif text-monk-300 tracking-widest">
                 诸恶莫作 · 众善奉行
              </span>
-             <div className="w-8 h-8 rounded-full bg-monk-700 flex items-center justify-center text-xs text-monk-200">
-                师
-             </div>
           </div>
         </div>
       </header>
