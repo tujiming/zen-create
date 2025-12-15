@@ -70,28 +70,35 @@ export const generateScript = async (
   const ai = new GoogleGenAI({ apiKey });
   
   // INCREASED DENSITY: Changed from 8s to 5s per scene to generate MORE videos.
-  const SECONDS_PER_SCENE = 5;
+  const SECONDS_PER_SCENE = 6;
   const estimatedScenes = Math.ceil((durationMinutes * 60) / SECONDS_PER_SCENE);
 
+  // Customized Instructions for Buddhist Audiences
+  let audienceInstruction = "";
+  if (audience === "Children") {
+    audienceInstruction = "Target Audience: CHILDREN (Age 5-10). Use the style of 'Jataka Tales' (本生经). Use simple language, focus on animals, kindness, and cause-and-effect (Karma). Tone: Cheerful, warm, storytelling.";
+  } else if (audience === "Elderly") {
+    audienceInstruction = "Target Audience: ELDERLY Buddhists. Focus on Pure Land (净土), Impermanence (无常), and peace of mind. Tone: Slow, comforting, respectful, deep wisdom, chanting style.";
+  } else {
+    audienceInstruction = "Target Audience: GENERAL PUBLIC. Modern Zen style, applicable to daily life, reducing stress. Tone: Calm, clear, inspiring.";
+  }
+
   const prompt = `
-    You are a wise Buddhist content creator. Create a video script in Simplified Chinese (简体中文) for a target audience of: ${audience}.
+    You are a wise Buddhist content creator (Dharma Master). Create a video script in Simplified Chinese (简体中文).
     The topic is: "${topic}".
+    ${audienceInstruction}
     
     CONSTRAINTS:
     1. The total video duration MUST be approximately ${durationMinutes} minutes.
-    2. Each visual scene corresponds to a ${SECONDS_PER_SCENE}-second video clip (Faster pacing).
+    2. Each visual scene corresponds to a ${SECONDS_PER_SCENE}-second video clip.
     3. Therefore, you MUST generate approximately ${estimatedScenes} distinct scenes.
-    4. For each scene's 'narration', keep the text length around 15-20 Chinese characters so it takes about ${SECONDS_PER_SCENE} seconds to read.
-    5. The content must be rooted in Buddhist philosophy (Compassion, Bodhicitta, Impermanence, etc.) but adapted to the audience age.
+    4. For each scene's 'narration', keep the text length strictly around 15-20 Chinese characters (readable in ${SECONDS_PER_SCENE}s).
+    5. 'visualDescription' must be a highly detailed English prompt for an AI Video Generator.
     
     Return a JSON object with a title and a list of scenes. 
     Each scene should have:
-    - 'narration': The text to be spoken (in Simplified Chinese, keep it rhythmic and peaceful).
-    - 'visualDescription': A detailed prompt for an AI video generator to visualize this scene (in English, describe movement, lighting, subjects).
-    
-    Style guidance:
-    - If Children: Use simple fables, warm colors, cute characters, gentle movement.
-    - If Elderly: Use calm, slow pacing, nature imagery, clear wisdom, cinematic slow motion.
+    - 'narration': The text to be spoken.
+    - 'visualDescription': English prompt. Include lighting (e.g., 'golden hour', 'soft temple light'), style (e.g., 'traditional ink painting', 'photorealistic 8k', 'ghibli style' for kids), and subject action.
   `;
 
   const response = await ai.models.generateContent({
