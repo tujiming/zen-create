@@ -24,6 +24,11 @@ export interface Project {
   title: string;
   targetAudience: 'Children' | 'General' | 'Elderly';
   coreValue: string; // e.g., Compassion, Impermanence
+  
+  // Consistency Settings
+  globalCharacter: string; // e.g. "A young monk named Yichen with a gentle smile"
+  globalStyle: string;     // e.g. "Traditional Chinese Ink Painting style"
+  
   scenes: Scene[];
 }
 

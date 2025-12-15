@@ -48,6 +48,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
 
       <footer className="bg-monk-100 text-monk-800 py-6 text-center text-sm border-t border-monk-200">
         <p>&copy; {new Date().getFullYear()} ZenCreate. 自净其意，是诸佛教。</p>
+        <p className="text-xs text-monk-400 mt-2 opacity-80">创作者：涂继明</p>
       </footer>
     </div>
   );

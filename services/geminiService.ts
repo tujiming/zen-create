@@ -60,17 +60,19 @@ const decodeAudioData = async (
 
 // --- API Functions ---
 
-// 1. Generate Script
+// Shared Config
+const SECONDS_PER_SCENE = 6;
+
+// 1. Generate Script (From Topic)
 export const generateScript = async (
   topic: string,
   audience: string,
   durationMinutes: number,
+  globalCharacter: string,
+  globalStyle: string,
   apiKey: string
 ): Promise<ScriptGenerationResponse> => {
   const ai = new GoogleGenAI({ apiKey });
-  
-  // INCREASED DENSITY: Changed from 8s to 5s per scene to generate MORE videos.
-  const SECONDS_PER_SCENE = 6;
   const estimatedScenes = Math.ceil((durationMinutes * 60) / SECONDS_PER_SCENE);
 
   // Customized Instructions for Buddhist Audiences
@@ -88,6 +90,10 @@ export const generateScript = async (
     The topic is: "${topic}".
     ${audienceInstruction}
     
+    CRITICAL VISUAL CONSISTENCY RULES:
+    1. Every single 'visualDescription' MUST start with this phrase: "${globalStyle}. ${globalCharacter} is present. "
+    2. Maintain strict character consistency.
+    
     CONSTRAINTS:
     1. The total video duration MUST be approximately ${durationMinutes} minutes.
     2. Each visual scene corresponds to a ${SECONDS_PER_SCENE}-second video clip.
@@ -96,11 +102,43 @@ export const generateScript = async (
     5. 'visualDescription' must be a highly detailed English prompt for an AI Video Generator.
     
     Return a JSON object with a title and a list of scenes. 
-    Each scene should have:
-    - 'narration': The text to be spoken.
-    - 'visualDescription': English prompt. Include lighting (e.g., 'golden hour', 'soft temple light'), style (e.g., 'traditional ink painting', 'photorealistic 8k', 'ghibli style' for kids), and subject action.
   `;
 
+  return await callGeminiForScript(ai, prompt);
+};
+
+// 1.5 Parse User Script (New Feature)
+export const parseUserScript = async (
+  rawScript: string,
+  globalCharacter: string,
+  globalStyle: string,
+  apiKey: string
+): Promise<ScriptGenerationResponse> => {
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+    You are a professional video editor. I have a raw script in Chinese. 
+    Please break this script down into video scenes.
+    
+    RAW SCRIPT:
+    "${rawScript}"
+    
+    INSTRUCTIONS:
+    1. Split the text into segments. Each segment should take about ${SECONDS_PER_SCENE} seconds to read (approx 15-20 Chinese characters).
+    2. For each segment, generate a 'visualDescription' in English.
+    
+    CRITICAL VISUAL CONSISTENCY RULES:
+    1. Every single 'visualDescription' MUST start with this exact phrase: "${globalStyle}. ${globalCharacter} is present. "
+    2. Describe the action matching the text segment.
+    
+    Return a JSON object with a title (summarize script in 5 words) and the list of scenes.
+  `;
+
+  return await callGeminiForScript(ai, prompt);
+};
+
+// Helper for script calls
+async function callGeminiForScript(ai: GoogleGenAI, prompt: string): Promise<ScriptGenerationResponse> {
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
@@ -129,7 +167,7 @@ export const generateScript = async (
 
   if (!response.text) throw new Error("No text returned from Gemini");
   return JSON.parse(response.text) as ScriptGenerationResponse;
-};
+}
 
 // 2. Generate Video (Veo)
 export const generateSceneVideo = async (

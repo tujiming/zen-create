@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { Player } from './components/Player';
 import { Project, Scene, AVAILABLE_VOICES } from './types';
-import { generateScript, generateSceneAudio, generateSceneVideo, generateSceneImage } from './services/geminiService';
+import { generateScript, parseUserScript, generateSceneAudio, generateSceneVideo, generateSceneImage } from './services/geminiService';
 import { saveProjectToStorage, getProjectsFromStorage, deleteProjectFromStorage } from './services/storageService';
+
+type InputMode = 'TOPIC' | 'SCRIPT';
 
 const App: React.FC = () => {
   const [project, setProject] = useState<Project | null>(null);
@@ -12,7 +14,14 @@ const App: React.FC = () => {
   const [autoProgress, setAutoProgress] = useState<{ current: number; total: number; status: string } | null>(null);
   
   // Input States
+  const [inputMode, setInputMode] = useState<InputMode>('TOPIC');
   const [inputTopic, setInputTopic] = useState('');
+  const [inputScript, setInputScript] = useState('');
+  
+  // Consistency Inputs
+  const [characterDesc, setCharacterDesc] = useState('An 8-year-old cute buddhist novice monk, wearing grey robes, shaved head, kind smile');
+  const [artStyle, setArtStyle] = useState('Ghibli style animation, soft lighting, peaceful atmosphere');
+
   const [targetAudience, setTargetAudience] = useState('Children');
   const [selectedVoice, setSelectedVoice] = useState(AVAILABLE_VOICES[0].name);
   const [targetDuration, setTargetDuration] = useState(1); 
@@ -196,19 +205,25 @@ const App: React.FC = () => {
 
   // --- Automation Workflow ---
 
-  // STEP 1: Generate Script Only
-  const handleGenerateScript = async () => {
-    if (!inputTopic) return;
+  // STEP 1: Generate Script (Either from Topic or Raw Text)
+  const handleCreateScript = async () => {
+    if (inputMode === 'TOPIC' && !inputTopic) return;
+    if (inputMode === 'SCRIPT' && !inputScript) return;
     
     if (!(await checkApiKeyBeforeAction())) return;
     const currentApiKey = process.env.API_KEY || '';
 
     setIsBusy(true);
-    setAutoProgress({ current: 0, total: 1, status: '正在构思脚本 (Writing Script)...' });
+    const modeLabel = inputMode === 'TOPIC' ? '正在构思脚本' : '正在分析文案';
+    setAutoProgress({ current: 0, total: 1, status: `${modeLabel} (Processing Script)...` });
 
     try {
-      // 1. Generate Script
-      const result = await generateScript(inputTopic, targetAudience, targetDuration, currentApiKey);
+      let result;
+      if (inputMode === 'TOPIC') {
+         result = await generateScript(inputTopic, targetAudience, targetDuration, characterDesc, artStyle, currentApiKey);
+      } else {
+         result = await parseUserScript(inputScript, characterDesc, artStyle, currentApiKey);
+      }
       
       const newScenes: Scene[] = result.scenes.map((s, idx) => ({
         id: `scene-${idx}-${Date.now()}`,
@@ -226,6 +241,8 @@ const App: React.FC = () => {
         title: result.title,
         targetAudience: targetAudience as any,
         coreValue: 'Compassion',
+        globalCharacter: characterDesc,
+        globalStyle: artStyle,
         scenes: newScenes
       };
       
@@ -236,7 +253,7 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error(error);
-      alert("脚本生成失败，请检查网络或 API Key 设置。");
+      alert("脚本处理失败，请检查网络或 API Key 设置。");
       setAutoProgress(null);
     } finally {
       setIsBusy(false);
@@ -245,7 +262,6 @@ const App: React.FC = () => {
 
   /**
    * STEP 2 & 3: Production Phase
-   * Generate Audio First -> Then Video
    */
   const handleStartProduction = async () => {
     if (!project) return;
@@ -255,8 +271,6 @@ const App: React.FC = () => {
     
     setIsBusy(true);
     
-    // Identify tasks
-    // If it's a fresh run, we do all scenes. If it's a "fix" run, we only do missing ones.
     const audioTasks = project.scenes.filter(s => !s.audioUrl);
     const visualTasks = project.scenes.filter(s => !s.videoUrl && !s.imageUrl);
     
@@ -267,9 +281,7 @@ const App: React.FC = () => {
     let lastError = '';
     let videoQuotaExhausted = false; 
     
-    // --- PHASE 1: AUDIO GENERATION (First) ---
-    // User requested: "Video synthesis AFTER generating dubbing and music"
-    // So we generate audio assets first.
+    // --- PHASE 1: AUDIO GENERATION ---
     for (let i = 0; i < audioTasks.length; i++) {
         const s = audioTasks[i];
         const sceneId = s.id;
@@ -291,7 +303,7 @@ const App: React.FC = () => {
         }
     }
 
-    // --- PHASE 2: VISUAL GENERATION (Second) ---
+    // --- PHASE 2: VISUAL GENERATION ---
     for (let i = 0; i < visualTasks.length; i++) {
        const s = visualTasks[i];
        const sceneId = s.id;
@@ -427,26 +439,87 @@ const App: React.FC = () => {
         <div className="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow-xl border border-monk-200 mb-12">
           <div className="mb-8 text-center border-b border-monk-100 pb-6">
             <h3 className="text-3xl font-serif text-monk-800 mb-2 font-bold">开始新的创作</h3>
-            <p className="text-monk-600 font-light">输入主题，系统将生成脚本供您审阅，随后再进行视频制作。</p>
+            <p className="text-monk-600 font-light">设定一致的人物与画风，可选择自动构思或直接粘贴文案。</p>
           </div>
           
-          <div className="space-y-8">
-            {/* Topic Input */}
+          {/* 1. Consistency Settings (Crucial for Video) */}
+          <div className="mb-8 bg-monk-50 p-6 rounded-xl border border-monk-200">
+             <h4 className="text-lg font-bold text-monk-800 mb-4 flex items-center gap-2">
+               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                 <path fillRule="evenodd" d="M18.685 19.097A9.723 9.723 0 0021.75 12c0-5.385-4.365-9.75-9.75-9.75S2.25 6.615 2.25 12a9.723 9.723 0 003.065 7.097A9.716 9.716 0 0012 21.75a9.716 9.716 0 006.685-2.653zm-12.54-1.285A7.486 7.486 0 0112 15a7.486 7.486 0 015.855 2.812A8.224 8.224 0 0112 20.25a8.224 8.224 0 01-5.855-2.438zM15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" clipRule="evenodd" />
+               </svg>
+               角色与画风统一设定 (Consistency)
+             </h4>
+             <div className="grid md:grid-cols-2 gap-4">
+               <div>
+                  <label className="block text-xs font-bold text-monk-600 mb-1">主角描述 (Character)</label>
+                  <textarea 
+                    className="w-full p-2 border border-monk-200 rounded text-sm h-20"
+                    placeholder="e.g. A young cute novice monk, grey robes..."
+                    value={characterDesc}
+                    onChange={(e) => setCharacterDesc(e.target.value)}
+                  />
+               </div>
+               <div>
+                  <label className="block text-xs font-bold text-monk-600 mb-1">画面风格 (Art Style)</label>
+                  <textarea 
+                    className="w-full p-2 border border-monk-200 rounded text-sm h-20"
+                    placeholder="e.g. Ghibli animation style, warm lighting..."
+                    value={artStyle}
+                    onChange={(e) => setArtStyle(e.target.value)}
+                  />
+               </div>
+             </div>
+          </div>
+
+          <div className="space-y-6">
+            
+            {/* 2. Input Mode Tabs */}
             <div>
-              <label className="block text-sm font-bold text-monk-800 mb-2">1. 视频主题 (Topic)</label>
-              <textarea 
-                className="w-full p-4 border border-monk-300 rounded-lg focus:ring-2 focus:ring-monk-500 focus:outline-none bg-stone-50 text-lg shadow-inner"
-                rows={3}
-                placeholder="例如：药师佛的十二大愿，给孩子讲因果故事..."
-                value={inputTopic}
-                onChange={(e) => setInputTopic(e.target.value)}
-              />
+               <div className="flex border-b border-monk-200 mb-4">
+                  <button 
+                    onClick={() => setInputMode('TOPIC')}
+                    className={`pb-2 px-4 font-bold text-lg transition-colors border-b-2 ${inputMode === 'TOPIC' ? 'border-monk-600 text-monk-800' : 'border-transparent text-monk-300 hover:text-monk-500'}`}
+                  >
+                    AI 自动构思
+                  </button>
+                  <button 
+                    onClick={() => setInputMode('SCRIPT')}
+                    className={`pb-2 px-4 font-bold text-lg transition-colors border-b-2 ${inputMode === 'SCRIPT' ? 'border-monk-600 text-monk-800' : 'border-transparent text-monk-300 hover:text-monk-500'}`}
+                  >
+                    直接粘贴文案
+                  </button>
+               </div>
+
+               {inputMode === 'TOPIC' ? (
+                 <div>
+                    <label className="block text-sm font-bold text-monk-800 mb-2">输入视频主题</label>
+                    <textarea 
+                      className="w-full p-4 border border-monk-300 rounded-lg focus:ring-2 focus:ring-monk-500 focus:outline-none bg-stone-50 text-lg shadow-inner"
+                      rows={3}
+                      placeholder="例如：药师佛的十二大愿，给孩子讲因果故事..."
+                      value={inputTopic}
+                      onChange={(e) => setInputTopic(e.target.value)}
+                    />
+                 </div>
+               ) : (
+                 <div>
+                    <label className="block text-sm font-bold text-monk-800 mb-2">粘贴完整文案</label>
+                    <textarea 
+                      className="w-full p-4 border border-monk-300 rounded-lg focus:ring-2 focus:ring-monk-500 focus:outline-none bg-stone-50 text-sm shadow-inner font-mono"
+                      rows={8}
+                      placeholder="在此处粘贴您的文案。系统会自动将其拆分为分镜，并为每一句文案生成对应的画面提示词..."
+                      value={inputScript}
+                      onChange={(e) => setInputScript(e.target.value)}
+                    />
+                 </div>
+               )}
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* Audience */}
               <div>
-                <label className="block text-sm font-bold text-monk-800 mb-2">2. 目标受众 (Audience)</label>
+                <label className="block text-sm font-bold text-monk-800 mb-2">目标受众 (Audience)</label>
                 <div className="flex flex-col gap-2">
                   {['Children', 'General', 'Elderly'].map(aud => (
                     <button
@@ -467,62 +540,68 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              {/* Duration */}
-              <div>
-                <label className="block text-sm font-bold text-monk-800 mb-2">3. 视频时长 (Duration)</label>
-                <div className="flex flex-col gap-2">
-                  {[1, 3, 5, 10].map(min => (
-                    <button
-                      key={min}
-                      onClick={() => setTargetDuration(min)}
-                      className={`py-3 px-4 rounded-lg border text-left transition-all flex items-center justify-between ${
-                        targetDuration === min 
-                          ? 'bg-monk-600 text-white border-monk-600 shadow-md transform scale-[1.02]' 
-                          : 'bg-white text-monk-600 border-monk-200 hover:bg-monk-50'
-                      }`}
-                    >
-                      <span>{getDurationLabel(min)}</span>
-                      {targetDuration === min && (
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
-                      )}
-                    </button>
-                  ))}
+              {/* Options (Duration for Topic / Voice for both) */}
+              <div className="space-y-4">
+                {inputMode === 'TOPIC' && (
+                  <div>
+                    <label className="block text-sm font-bold text-monk-800 mb-2">预估时长 (分钟)</label>
+                    <div className="relative">
+                       <input 
+                          type="number" 
+                          min="0.1" 
+                          step="0.1"
+                          value={targetDuration}
+                          onChange={(e) => {
+                             const val = parseFloat(e.target.value);
+                             // Allow empty string temporarily or handle 0
+                             setTargetDuration(isNaN(val) ? 0 : val);
+                          }}
+                          className="w-full p-3 pr-16 border border-monk-300 rounded-lg focus:ring-2 focus:ring-monk-500 focus:outline-none bg-white text-monk-800 text-lg font-bold shadow-sm"
+                       />
+                       <span className="absolute right-4 top-1/2 -translate-y-1/2 text-monk-400 text-xs font-bold pointer-events-none tracking-wider">
+                          MINUTES
+                       </span>
+                    </div>
+                    <p className="text-xs text-monk-400 mt-2 pl-1 flex items-center gap-1">
+                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                       {getDurationLabel(targetDuration)}
+                    </p>
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-sm font-bold text-monk-800 mb-2">选择配音</label>
+                  <div className="flex gap-2 flex-wrap">
+                      {AVAILABLE_VOICES.map(voice => (
+                        <button
+                          key={voice.name}
+                          onClick={() => setSelectedVoice(voice.name)}
+                          className={`py-2 px-3 rounded-lg border text-xs ${
+                            selectedVoice === voice.name 
+                              ? 'bg-monk-600 text-white border-monk-600' 
+                              : 'bg-white text-monk-600 border-monk-200'
+                          }`}
+                        >
+                            {voice.name} ({voice.gender === 'Male'?'男':'女'})
+                        </button>
+                      ))}
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Voice */}
-            <div>
-              <label className="block text-sm font-bold text-monk-800 mb-2">4. 选择配音 (Voice)</label>
-              <div className="flex gap-2 flex-wrap">
-                  {AVAILABLE_VOICES.map(voice => (
-                    <button
-                      key={voice.name}
-                      onClick={() => setSelectedVoice(voice.name)}
-                      className={`py-2 px-4 rounded-lg border transition-all text-sm ${
-                        selectedVoice === voice.name 
-                          ? 'bg-monk-600 text-white border-monk-600 shadow-sm' 
-                          : 'bg-white text-monk-600 border-monk-200 hover:bg-monk-50'
-                      }`}
-                    >
-                        {getVoiceLabel(voice)}
-                    </button>
-                  ))}
               </div>
             </div>
 
             <div className="pt-4">
               <button 
-                onClick={handleGenerateScript}
-                disabled={!inputTopic}
+                onClick={handleCreateScript}
+                disabled={inputMode === 'TOPIC' ? !inputTopic : !inputScript}
                 className={`w-full py-5 rounded-xl font-bold text-xl shadow-xl transition-all flex items-center justify-center gap-3 ${
-                  !inputTopic
+                  (inputMode === 'TOPIC' ? !inputTopic : !inputScript)
                     ? 'bg-stone-300 cursor-not-allowed text-stone-500' 
                     : 'bg-gradient-to-r from-monk-600 to-monk-500 hover:from-monk-700 hover:to-monk-600 text-white hover:scale-[1.01]'
                 }`}
               >
                 <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                生成脚本 (Generate Script Only)
+                {inputMode === 'TOPIC' ? '生成脚本 (Generate Script)' : '分析文案 (Parse Script)'}
               </button>
             </div>
           </div>
@@ -717,7 +796,7 @@ const App: React.FC = () => {
                             请审阅下方脚本！
                         </p>
                         <p className="text-sm text-amber-700">
-                            您可以修改每一段的“旁白”和“提示词”。确认无误后，点击右上角的 <strong>“确认脚本并开始制作”</strong> 按钮，系统将按顺序生成配音和视频。
+                            系统已自动将您的【主角设定】和【画风设定】添加到了每一段画面的提示词中，以确保视频一致性。
                         </p>
                     </div>
                 </div>
@@ -748,11 +827,12 @@ const App: React.FC = () => {
                 <label className="block text-xs font-bold text-monk-400 uppercase tracking-wider mb-1">提示词 (Prompt)</label>
                 <textarea 
                   className="w-full p-3 bg-stone-50 border border-stone-200 rounded text-xs text-stone-600 focus:ring-1 focus:ring-monk-400 focus:outline-none"
-                  rows={2}
+                  rows={3}
                   value={scene.visualPrompt}
                   onChange={(e) => handleUpdateText(scene.id, 'visualPrompt', e.target.value)}
                   onBlur={() => persistProject(project)} // Save on blur
                 />
+                <p className="text-[10px] text-monk-300 mt-1">* 包含了全局一致性设定</p>
               </div>
 
               <div className="flex items-center gap-4 pt-2 border-t border-stone-100 mt-2">
