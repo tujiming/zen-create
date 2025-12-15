@@ -455,7 +455,7 @@ const App: React.FC = () => {
                   <label className="block text-xs font-bold text-monk-600 mb-1">主角描述 (Character)</label>
                   <textarea 
                     className="w-full p-2 border border-monk-200 rounded text-sm h-20"
-                    placeholder="e.g. A young cute novice monk, grey robes..."
+                    placeholder="e.g. A young cute novice monk... (支持中文输入，系统将自动转换为AI提示词)"
                     value={characterDesc}
                     onChange={(e) => setCharacterDesc(e.target.value)}
                   />
@@ -464,7 +464,7 @@ const App: React.FC = () => {
                   <label className="block text-xs font-bold text-monk-600 mb-1">画面风格 (Art Style)</label>
                   <textarea 
                     className="w-full p-2 border border-monk-200 rounded text-sm h-20"
-                    placeholder="e.g. Ghibli animation style, warm lighting..."
+                    placeholder="e.g. Ghibli animation style... (支持中文输入，系统将自动转换为AI提示词)"
                     value={artStyle}
                     onChange={(e) => setArtStyle(e.target.value)}
                   />
@@ -544,7 +544,7 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 {inputMode === 'TOPIC' && (
                   <div>
-                    <label className="block text-sm font-bold text-monk-800 mb-2">预估时长 (分钟)</label>
+                    <label className="block text-sm font-bold text-monk-800 mb-2">设置时长 (分钟)</label>
                     <div className="relative">
                        <input 
                           type="number" 

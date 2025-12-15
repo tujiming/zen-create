@@ -90,16 +90,19 @@ export const generateScript = async (
     The topic is: "${topic}".
     ${audienceInstruction}
     
-    CRITICAL VISUAL CONSISTENCY RULES:
-    1. Every single 'visualDescription' MUST start with this phrase: "${globalStyle}. ${globalCharacter} is present. "
-    2. Maintain strict character consistency.
+    CRITICAL VISUAL CONSISTENCY RULES (Auto-Translation):
+    1. The 'visualDescription' MUST be in English.
+    2. Start EVERY 'visualDescription' by incorporating the global style and character defined below.
+       - Global Style: "${globalStyle}"
+       - Global Character: "${globalCharacter}"
+    3. IMPORTANT: If the 'Global Style' or 'Global Character' are provided in Chinese (or any other language), you MUST translate them into detailed, descriptive English prompts first, and then use that English description in the 'visualDescription'.
     
     CONSTRAINTS:
     1. The total video duration MUST be approximately ${durationMinutes} minutes.
     2. Each visual scene corresponds to a ${SECONDS_PER_SCENE}-second video clip.
     3. Therefore, you MUST generate approximately ${estimatedScenes} distinct scenes.
     4. For each scene's 'narration', keep the text length strictly around 15-20 Chinese characters (readable in ${SECONDS_PER_SCENE}s).
-    5. 'visualDescription' must be a highly detailed English prompt for an AI Video Generator.
+    5. 'visualDescription' must be a highly detailed English prompt suitable for an AI Video Generator (like Veo).
     
     Return a JSON object with a title and a list of scenes. 
   `;
@@ -127,9 +130,13 @@ export const parseUserScript = async (
     1. Split the text into segments. Each segment should take about ${SECONDS_PER_SCENE} seconds to read (approx 15-20 Chinese characters).
     2. For each segment, generate a 'visualDescription' in English.
     
-    CRITICAL VISUAL CONSISTENCY RULES:
-    1. Every single 'visualDescription' MUST start with this exact phrase: "${globalStyle}. ${globalCharacter} is present. "
-    2. Describe the action matching the text segment.
+    CRITICAL VISUAL CONSISTENCY RULES (Auto-Translation):
+    1. The 'visualDescription' MUST be in English.
+    2. Start EVERY 'visualDescription' by incorporating the global style and character defined below.
+       - Global Style: "${globalStyle}"
+       - Global Character: "${globalCharacter}"
+    3. IMPORTANT: If the 'Global Style' or 'Global Character' are provided in Chinese (or any other language), you MUST translate them into detailed, descriptive English prompts first, and then use that English description in the 'visualDescription'.
+    4. Describe the specific action in English matching the text segment.
     
     Return a JSON object with a title (summarize script in 5 words) and the list of scenes.
   `;
