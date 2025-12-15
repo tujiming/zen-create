@@ -707,7 +707,7 @@ const App: React.FC = () => {
         <div className="max-w-6xl mx-auto">
            {/* Improved Header with Import Button */}
            <div className="flex justify-between items-center mb-6 border-l-4 border-monk-600 pl-4">
-              <h3 className="text-2xl font-serif text-monk-900">我的作品记录 (Works History)</h3>
+              <h3 className="text-2xl font-serif text-monk-900">以往作品</h3>
               
               <label className="cursor-pointer bg-white border border-monk-300 text-monk-600 px-4 py-2 rounded-lg text-sm hover:bg-monk-50 transition shadow-sm flex items-center gap-2 active:scale-95">
                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">

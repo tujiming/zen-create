@@ -8,11 +8,11 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
   return (
     <div className="min-h-screen flex flex-col bg-stone-50 text-stone-800">
-      <header className="bg-monk-800 text-monk-50 py-4 px-6 shadow-md sticky top-0 z-50 border-b border-monk-700">
-        <div className="max-w-6xl mx-auto flex items-center gap-6">
-          <div className="flex items-center space-x-4 group cursor-pointer" onClick={() => window.location.reload()}>
+      <header className="bg-monk-800 text-monk-50 py-4 px-4 sm:px-6 shadow-md sticky top-0 z-50 border-b border-monk-700">
+        <div className="max-w-6xl mx-auto flex items-center gap-3 sm:gap-6">
+          <div className="flex items-center space-x-3 sm:space-x-4 group cursor-pointer" onClick={() => window.location.reload()}>
             {/* Zen Enso Logo - Minimalist & Atmospheric */}
-            <div className="relative w-12 h-12 flex items-center justify-center">
+            <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center flex-shrink-0">
                <svg viewBox="0 0 100 100" className="w-full h-full text-monk-100 fill-current opacity-90">
                   {/* Outer Enso Brush Stroke */}
                   <path d="M50,95C25.1,95,5,74.9,5,50S25.1,5,50,5c10.5,0,20.2,3.6,28,9.5l-4.5,5.5C67.1,15.6,58.9,13,50,13C29.6,13,13,29.6,13,50s16.6,37,37,37s37-16.6,37-37c0-2.8-0.3-5.5-0.9-8.1l7.8-2.2C94.6,42.8,95,46.3,95,50C95,74.9,74.9,95,50,95z" />
@@ -22,18 +22,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, title }) => {
             </div>
             
             <div className="flex flex-col -space-y-1">
-               <h1 className="text-2xl font-serif font-medium tracking-widest text-monk-50">
+               <h1 className="text-lg sm:text-2xl font-serif font-medium tracking-widest text-monk-50 whitespace-nowrap">
                  ZEN·CREATE
                </h1>
-               <span className="text-[10px] font-sans text-monk-300 tracking-[0.3em] uppercase opacity-80">
+               <span className="text-[8px] sm:text-[10px] font-sans text-monk-300 tracking-[0.3em] uppercase opacity-80">
                  Dharma Studio
                </span>
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center space-x-6">
-             <div className="h-8 w-px bg-monk-600"></div>
-             <span className="text-xs font-serif text-monk-300 tracking-widest">
+          <div className="flex items-center space-x-3 sm:space-x-6">
+             <div className="hidden sm:block h-8 w-px bg-monk-600"></div>
+             <span className="text-[10px] sm:text-xs font-serif text-monk-300 tracking-widest whitespace-nowrap">
                 诸恶莫作 · 众善奉行
              </span>
           </div>
